@@ -1,0 +1,232 @@
+/*
+	Grids On Grids On Grids
+
+	SASS GRID SYSTEM
+ */
+
+$default-media: root;
+$current-media: $default-media;
+$placeholders: ();
+$definedMedia: ();
+
+@mixin media($handle, $options: ()) {
+	@if not map-has-key($definedMedia, $handle) {
+		@warn "Invalid media `#{$handle}`.";
+	} @else {
+		$mediaData: getMedia($handle, $options);
+		$media: map-get($mediaData, 'media');
+
+		@if $media != null {
+			$current-media: $handle !global;
+
+			@media #{$media} {
+				@content;
+			}
+
+			$current-media: $default-media !global;
+		} @else {
+			@warn "Invalid media `#{$handle}`.";
+		}
+	}
+}
+
+@mixin setMedia($handle, $options: ()) {
+	@if not map-has-key($definedMedia, $handle) {
+		$defaultData: $gogogMedia;
+		$mediaData: map-merge($defaultData, $options);
+
+		$definedMedia: map-merge($definedMedia, ($handle: $mediaData)) !global;
+	}
+}
+
+@function getMedia($handle: 'default', $options: ()) {
+	$mediaData: ();
+
+	@if $handle == 'default' {
+		$mediaData: $gogogMedia;
+	} @else {
+		$mediaData: map-get($definedMedia, $handle);
+	}
+
+	$mediaData: map-merge($mediaData, $options);
+
+	@return $mediaData;
+}
+
+@mixin placeholder($name) {
+	@if not index($placeholders, $name) {
+		$placeholders: append($placeholders, $name) !global;
+
+		@at-root {
+			@each $size, $mediaData in $definedMedia {
+				$media: map-get($mediaData, 'media');
+
+				@if $media != null {
+					@media #{$media} {
+						%#{$name}-#{$size} {
+							@content;
+						}
+					}
+				}
+			}
+
+			%#{$name}-#{$default-media} {
+				@content;
+			}
+		}
+	}
+}
+
+@mixin _($name) {
+    @extend %#{$name}-#{$current-media} !optional;
+}
+
+@mixin grid($columns, $options: ()) {
+	$media: map-get($options, 'media');
+	$clearRow: map-get($options, 'new-row');
+	$gutter: map-get($options, 'gutter');
+	$totalColumns: 12;
+	$mediaData: ();
+
+	@if $media == null {
+		$mediaData: $gogogMedia;
+	} @else {
+		$mediaData: map-get($definedMedia, $media);
+	}
+
+	@if $gutter == null {
+		$gutter: map-get($mediaData, 'gutter');
+	}
+
+	@if type-of($columns) == string and str-index($columns, ' of ') > 0 {
+		$columnsClone: $columns;
+		$stringLength: str_length($columns);
+		$ofStart: str-index($columns, ' of ');
+		$columnsTotal: str_slice($columnsClone, $ofStart + 4, $stringLength);
+		$columns: str_slice($columnsClone, 1, $ofStart - 1);
+
+		$columns: $columns;
+		$totalColumns: $columnsTotal;
+	} @else {
+		$totalColumns: map-get($mediaData, 'columns');
+	}
+
+	@include createColumnPlaceholder($totalColumns, $gutter);
+
+	@include _(column-span-#{$columns}-#{$totalColumns}-#{$gutter});
+
+	@if $clearRow == 1 or $columns == $totalColumns {
+		margin-left: auto;
+	}
+}
+
+@mixin shift($direction, $columns: 12, $size: 'large') {
+	@if $direction == left {
+		@include _(column-fluid-shift-#{($columns)}-#{$size});
+	} @else {
+		@include placeholder('column-fluid-shift-center') {
+			margin-left: auto;
+			margin-right: auto;
+		}
+
+		@include _(column-fluid-shift-center);
+	}
+}
+
+@mixin put($direction, $columns: 12, $totalColumns: 12) {
+	@if $direction == left {
+		@include _(column-fixed-shift-#{$columns}-#{$size});
+	} @else {
+		@include placeholder('column-fixed-shift-center') {
+			margin-left: auto;
+			margin-auto: auto;
+			left: 0;
+			right: 0;
+		}
+
+		@include _(column-fixed-shift-center);
+	}
+}
+
+@function getGutter($totalColumns, $gutter) {
+	$totalColumns: number($totalColumns);
+	$totalGutters: $totalColumns - 1;
+	$columnWidth: 100 - $gutter;
+	$gutterWidth: $gutter;
+
+	$totalWidth: ($totalGutters * $gutterWidth) + ($totalColumns * $columnWidth);
+
+	@return percentage($gutterWidth / $totalWidth);
+}
+
+@function getColumn($totalColumns, $gutter) {
+	$totalColumns: number($totalColumns);
+	$totalGutters: $totalColumns - 1;
+	$columnWidth: 100 - $gutter;
+	$gutterWidth: $gutter;
+
+	$totalWidth: ($totalGutters * $gutterWidth) + ($totalColumns * $columnWidth);
+
+	@return percentage($columnWidth / $totalWidth);
+}
+
+@mixin createColumnPlaceholder($totalColumns, $gutter) {
+	$totalColumns: number($totalColumns);
+	$count: $totalColumns;
+	$baseGutterPercentage: getGutter($totalColumns, $gutter);
+
+	@while $count > 0 {
+		$countLess: $count - 1;
+		$gutterPadding: $countLess * $baseGutterPercentage;
+		$widthPercentage: getColumn($totalColumns, $gutter);
+
+		@at-root (without: media) {
+			@include placeholder('column-span-#{$count}-#{$totalColumns}-#{$gutter}') {
+				width: ($widthPercentage * $count) + $gutterPadding;
+				margin-left: $baseGutterPercentage;
+
+				&:first-child {
+					margin-left: auto;
+				}
+			}
+
+			@include placeholder('column-fixed-shift-#{$countLess}-#{$totalColumns}-#{$gutter}') {
+				left: percentage($countLess/$totalColumns);
+				right: auto;
+			}
+
+			@include placeholder('column-fluid-shift-#{$countLess}-#{$totalColumns}-#{$gutter}') {
+				margin-left: percentage($countLess/$totalColumns);
+			}
+		}
+
+	  	$count: $countLess;
+	}
+}
+
+@function number($string) {
+	@if (type-of($string) != string) {
+		@return $string;
+	}
+
+	$strings: '0' '1' '2' '3' '4' '5' '6' '7' '8' '9';
+	$numbers:  0   1   2   3   4   5   6   7   8   9;
+
+	$result: 0;
+
+	@for $i from 1 through str-length($string) {
+		$character: str-slice($string, $i, $i);
+		$index: index($strings, $character);
+
+		@if not $index {
+			@warn "Unknown character `#{$character}`.";
+
+			@return false;
+		}
+
+		$number: nth($numbers, $index);
+		$result: $result * 10 + $number;
+	}
+
+	@return $result;
+}
